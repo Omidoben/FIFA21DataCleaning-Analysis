@@ -1,0 +1,611 @@
+---
+title: "FIFA21 Project"
+author: "Benard Omido"
+date: "2024-01-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+```
+
+## Objective
+
+The objective of this project is to perform data cleaning and transformation on the raw, messy fifa21 data set, and then to analyze the data to derive insights such as who are the most valuable players, which players have stayed at a club for the longest time, the most skilled players, and if there's a relationship between age, weight, and height of a player.
+
+
+```{r}
+library(tidyverse)
+library(skimr)
+```
+
+Import the data set
+
+```{r}
+fifa <- read_csv("F:\\Tutorials\\R tutorials\\Datasets\\fifa21 raw data v2.csv")
+View(fifa)
+```
+
+
+```{r}
+head(fifa)
+```
+
+**Understanding the variables in the data set**
+
+This data set contains a unique player ID, their general information such as: Name, Club, Nationality, Age,   Height, Weight, and positions, and also football attributes such as Attacking, Skills, Movement, Power, and    Mentality
+
+**Attacking** = Crossing + Finishing + Heading Accuracy + Short Passing + Volleys
+
+**Skill** = Dribbling + Curve + FK Accuracy + Long Passing + Ball Control
+
+**Movement** = Acceleration + Sprint speed + Agility + Reactions + Balance
+
+**Power** = Shot Power + Jumping + Stamina + Strength + Long Shots
+
+**Mentality** = Aggression + Interceptions + Positioning + Vision + Penalties
+
+**Goal Keeping** = GK Diving + GK Handling + GK Kicking + GK Positioning + GK Reflexes
+
+**Defending** = Marking + Standing Tackle + Sliding Tackle
+
+**OVA** = Overall Average of the player
+
+
+**Exploring the data set first**
+
+Use glimpse to check the structure and data types
+
+```{r}
+glimpse(fifa)
+```
+
+Count total number of rows and columns
+
+```{r}
+nrow(fifa)
+ncol(fifa)
+```
+
+There are 18979 rows and 77 columns in the data set
+
+Check for duplicates and missing values
+
+```{r}
+fifa %>% 
+  summarize(dups = sum(duplicated(.)))
+
+#checking on the ID column
+sum(duplicated(fifa$ID))
+```
+
+The data set does not contain any duplicates
+
+```{r, results='hide'}
+#Using skimr to check missing values in the data set
+skim(fifa)
+```
+
+The data does not contain missing values
+
+### Data Cleaning Tasks
+
+1. Drop columns that won't be used in the analysis
+2. Fix the column names
+3. Remove the unnecessary newline characters from all columns that have them
+4. Convert the height and weight columns into numeric
+5. Convert the value, Wage, and  release clause columns into numeric, multiply the columns by there respective value, e.g "M" should be multiplied by 1000000 
+6. Remove star characters in the W/F, SM, and IR columns
+7. Split the contract column into three separate columns: the year the contract starts, ends, and the type of contract
+
+### Data Analysis Tasks
+
+1. Based on the Joined column, check which players have been playing at one club for more 10 years
+2. Which are the most valuable players, and which players are highly valued but still underpaid
+3. Who are the most skilled players
+4. Is there a relationship between age, height, and weight of a player?
+
+**1. Create a new data frame and drop columns that won't be considered in the analysis**
+
+```{r}
+fifa21 <- fifa %>% 
+  select(-c(LongName, photoUrl, playerUrl))
+
+View(fifa21)
+```
+
+**2. Fix the column names**
+
+```{r}
+library(janitor)
+
+fifa21 <- fifa21 %>% 
+  clean_names()
+```
+
+**3. Remove newline characters from all columns that have them**
+
+```{r, results='hide'}
+# Club column
+unique(fifa21$club)
+```
+
+```{r}
+fifa21$club <- if_else(str_detect(fifa21$club, "\n{4}"), 
+                       str_replace_all(fifa21$club, "\n{4}", ""), fifa21$club)
+```
+
+**4. Convert the height and weight columns to numeric**
+
+Height Column
+```{r}
+unique(fifa21$height)
+```
+
+First strip the string "cm" then Write a function that removes the non numeric characters, then converts the values to one unit
+
+```{r, results='hide'}
+fifa21$height <- str_replace_all(fifa21$height, "cm", "")
+
+inches_to_cm <- function(height_cm){
+  if (str_detect(height_cm, "'")) {
+    height_cm = str_replace_all(height_cm, c("'"=".", "\""=""))
+    cm = round(as.numeric(height_cm) * 30.48, 0)
+    print(cm)
+  }
+  else{
+    print(as.numeric(height_cm))
+  }
+}
+
+#Use the sapply function 
+
+fifa21$height <- sapply(fifa21$height, inches_to_cm)
+```
+
+```{r}
+unique(fifa21$height)
+```
+
+Weight column
+```{r}
+unique(fifa21$weight)
+```
+
+Strip the "kg" string then convert lbs to a common unit
+
+```{r, results='hide'}
+fifa21$weight <- str_replace_all(fifa21$weight, "kg", "")
+
+lbs_to_kg <- function(weight_kg){
+  if (str_detect(weight_kg, "lbs")) {
+    weight_kg = str_replace_all(weight_kg, "lbs", "")
+    kgs = round(as.numeric(weight_kg) * 0.454, 0)
+    print(kgs)
+  }
+  else {
+    print(as.numeric(weight_kg))
+  }
+}
+
+fifa21$weight <- sapply(fifa21$weight, lbs_to_kg)
+
+```
+
+```{r}
+unique(fifa21$weight)
+```
+
+**5. Convert the value, wage, and release clause columns to numeric**
+
+```{r, results='hide'}
+unique(fifa21$value)
+unique(fifa21$wage)
+unique(fifa21$release_clause)
+```
+
+
+```{r, results='hide'}
+#First drop the euro sign
+fifa21 <- fifa21 %>% 
+  mutate(
+    across(
+      c(value, wage, release_clause),
+      .fns = ~str_replace_all(.x, "€", "")
+    )
+  )
+
+
+value_mil <- function(value_x){
+  if (str_detect(value_x, "M")) {
+    value_x = str_replace_all(value_x, "M", "")
+    value_x = round(as.numeric(value_x) * 1000000, 0)
+    print(value_x)
+  }
+  else if (str_detect(value_x, "K")) {
+    value_x = str_replace_all(value_x, "K", "")
+    value_x = round(as.numeric(value_x) * 1000, 0)
+    print(value_x)
+  }
+  else {
+    print(as.numeric(value_x))
+  }
+}
+
+fifa21$value <- sapply(fifa21$value, value_mil)
+
+fifa21$wage <- sapply(fifa21$wage, value_mil)
+
+fifa21$release_clause <- sapply(fifa21$release_clause, value_mil)
+
+```
+
+**6. Remove star characters in the W/F, SM, and IR columns**
+
+```{r}
+unique(fifa21$w_f)
+unique(fifa21$sm)
+unique(fifa21$ir)
+```
+
+```{r, results='hide'}
+star_fn <- function(star_char){
+  if (str_detect(star_char, " ★|★")){
+    star_char = str_replace_all(star_char, " ★|★", "")
+    print(as.numeric(star_char))
+  }}
+
+
+fifa21$w_f <-  sapply(fifa21$w_f, star_fn)
+
+fifa21$sm <- sapply(fifa21$sm, star_fn)
+
+fifa21$ir <- sapply(fifa21$ir, star_fn)
+```
+
+**7. Split the contract column into three separate columns: the year the contract starts, ends, and the type of contract**
+
+```{r}
+unique(fifa21$contract)
+```
+
+Create a function that checks whether the rows in the contract column fall under (contract, free, loan) contract types
+
+```{r, results='hide'}
+contract_type <- function(type){
+  if (str_detect(type, "~")) {
+    print("Contract")
+  }
+  else if (str_detect(type, "Free")){
+    print("Free")
+  }
+  else if (str_detect(type, "On Loan")){
+    print("On Loan")
+  }
+  else {
+    print(type)
+  }
+}
+
+
+#Use mutate to create a new column that holds the type of contract
+#Then use separate to split contract column into start year and end year
+fifa21 <- fifa21 %>% 
+  mutate(Type_of_contract = sapply(fifa21$contract, contract_type)) %>% 
+  separate(contract, into = c("Start_year", "End_year"), sep = "~")
+
+
+#After separating the contract column, it appears that the Start_year column contains date values ("On Loan" rows) which should belong in the End_year column, thus in this section, we are going to populate the end_year column with this values.
+
+unique(fifa21$Start_year)
+
+fifa21$End_year <- if_else(is.na(fifa21$End_year), fifa21$Start_year, fifa21$End_year)
+
+#Then drop the 'On Loan" and "Free" rows from start_year column
+fifa21$Start_year <- if_else(str_detect(fifa21$Start_year, "On Loan|Free"), NA, fifa21$Start_year)
+
+
+
+#Populate the NA values in start_year with the right year, refer to the joined column
+unique(fifa21$joined)
+class(fifa21$joined)
+
+fifa21 <- fifa21 %>% 
+  mutate(joined = as_date(joined, format = "%d-%b-%y"),
+         YearJoined = as.character(year(joined)),
+         Start_year = if_else(is.na(Start_year), YearJoined, Start_year))
+
+
+
+#Finally, create a function that replaces "On Loan" string in the end year column and retrieves the date only
+unique(fifa21$End_year)
+
+
+ end_year_fixed <- function(loan_date){
+  if (str_detect(loan_date, "On Loan")) {
+    loan_date = str_replace_all(loan_date, "On Loan", "")
+    loan_date = year(as_date(loan_date, format = "%b-%d-%y"))
+    print(loan_date)
+  }
+  else{
+    print(str_trim(loan_date))
+  }
+}
+
+fifa21$End_year <- sapply(fifa21$End_year, end_year_fixed)
+
+
+
+fifa21 <- fifa21 %>% 
+  mutate(Loan_Date_End = as_date(joined, format = "%d-%b-%y"),
+         Loan_End = as.character(year(joined)),
+         End_year = if_else(is.na(End_year), Loan_End, End_year))
+
+ 
+ 
+#Trim whitespaces from start year column
+fifa21$Start_year <- str_trim(fifa21$Start_year)
+
+```
+
+Confirm the results
+
+```{r}
+unique(fifa21$Type_of_contract)
+unique(fifa21$Start_year)
+unique(fifa21$End_year)
+```
+
+## Data Analysis / Visualization
+
+**1. Based on the 'Joined' column, check which players have been playing at a club for more than 10 years!**
+
+```{r}
+class(fifa21$joined)
+
+fifa21 %>% 
+  mutate(duration = as.numeric(difftime(today(), joined, units = "days")) %/% 365.25) %>% 
+  filter(duration >= 10) %>% 
+  arrange(desc(duration)) %>% 
+  select(name, nationality, club, duration) %>% 
+  slice_max(duration, n = 10)
+```
+
+759 players have been playing at a club for more than 10 years. Above are the top 10 players who have stayed at a club for the longest time.
+
+**2. Which players are highly valuable but still underpaid (on low wages)? (hint: scatter plot between wage       and value **
+
+```{r}
+library(ggrepel)
+library(PerformanceAnalytics)
+
+#Check the data types of Wage and Value
+class(fifa21$value)
+class(fifa21$wage)
+
+
+#The correlation chart below shows that there exists a strong positive relationship of (0.81) between the Value and wage of a player
+
+fifa21 %>% 
+  select(value, wage, release_clause) %>% 
+  chart.Correlation()
+
+
+#Use histograms to check the distribution of Wage and Value
+
+#Majority of the players earn less than 25,000
+
+fifa21 %>% 
+ggplot(aes(wage)) +
+  geom_histogram() +
+  scale_x_continuous(breaks = seq(0, 500000, 100000),
+                     labels = c(0, "100K", "200K", "300K", "400K", "500K"))
+
+
+fifa21 %>% 
+  ggplot(aes(value)) +
+  geom_histogram() +
+  scale_x_continuous(breaks = seq(0, 200000000, 50000000),
+                     labels = c(0, "50M", "100M", "150M", "200M"))
+
+#Scatter plot that shows the relationship between value and wage of players. It displays names of players who are highly valyed but still earn less
+
+fifa21 %>% 
+filter(wage <= 60000 & value >= 50000000) %>% 
+ggplot(aes(value, wage, label = name)) +
+  geom_point(aes(color = best_position), position = "jitter") + 
+  geom_text_repel(hjust = 1,
+                  nudge_y = 4,
+                  direction = "x") +
+  scale_y_continuous(breaks = seq(0, 500000, 50000),
+                     labels = c(0, "50K", "100K", "150K", "200K", "250K", "300K", "350K", "400K", "450K", "500K")) +
+  scale_x_continuous(breaks = seq(0, 200000000, 25000000),
+                     labels = c(0,"25M", "50M", "75M", "100M", "125M", "150M", "175M", "200M")) +
+  labs(
+    title = "Underpaid Players who are Highly Valuable",
+    subtitle = "(G. Donnarumma is one of the highest valued players but\n still gets underpaid)"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none",
+        title = element_text(size = 14, face = "bold"),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12, face = "bold"),
+        plot.subtitle = element_text(colour = "gray30", face = "italic", size = 11))
+
+```
+
+**3. Who are the most valuable players?**
+
+```{r}
+library(kableExtra)
+
+Most_Valuable <- fifa21 %>% 
+  filter(value > 100000000) %>% 
+  select(name, club, value) %>% 
+  arrange(desc(value))
+
+Most_Valuable %>% 
+  kable(digits = 0, format = "html", 
+        caption = "Mbappe and Neymar Jr were the most valuable players") %>% 
+  kable_classic("striped", "bordered", full_width = FALSE, html_font = "cambria",
+                position = "left",
+                fixed_thead = T) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, bold = TRUE, color = "black", background = ("#F0E68C")) %>% 
+  column_spec(2, color = "black", background = "lightblue")
+```
+
+**4. Is there a significant relationship between the weight, height, and age of a player? (Does the height and age of a player have a significant impact on the weight?) **
+
+```{r}
+#Create a new data frame to hold the variables of interest
+df <- fifa21 %>% 
+  select(weight, height, age)
+
+
+#Scatter plot to check relationships between weight and height, weight and age respectively
+ggplot(df, aes(height, weight)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+ggplot(df, aes(age, weight)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+
+#Using a correlation matrix
+
+df %>% 
+  select_if(is.numeric) %>% 
+  chart.Correlation()
+
+
+#From above scatter plots, there is a strong positive linear relationship between weight and height, where as there is a weak positive relationship between Age and weight. This can also be seen in the correlation matrix. (correlation between age and weight = 0.24).
+#Thus to perform multiple linear regression, we convert Age into a categorical variable
+
+df <- df %>% 
+   mutate(AgeCat = cut(age, breaks = c(0, 20, 25, 30, 35, 60),
+                      labels = c("A", "B", "C", "D", "E")))
+View(df)
+
+
+model1 <- lm(weight ~ height + AgeCat, data = df)
+plot(model1)
+
+#Checking assumptions of multiple linear regression
+
+#The residuals vs Fitted plot indicates that there exists an approximately linear relationship since the line is fairly horizontal
+#The Normal Q-Q plot shows that the residuals from the model are approximately normally distributed with some slight deviations on both ends of the dashed line
+#The Scale-Location plot has a fairly horizontal line, this shows that there is homoscedasticity in the model since the points are almost equally spread from the regression line across the observations
+#The fairly horizontal line in the residuals vs Leverage plot indicates that there may be some few outliers in the data
+
+summary(model1)
+
+
+# Scatter plot representing the model
+ggplot(df, aes(height, weight, color = AgeCat)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+```
+
+Interpretation of Above Model
+
+From the scatter plot, we can notice that Height has an effect on weight, as height increases by one unit we expect the weight to increase by 0.778. This increase is assumed to be the same for all the age categories. 
+The Age category also has an effect on weight, for players in age category A the weight increases by 0.778, in age category B weight increases by 1.33, in age category C weight increases by 2.71, in age category D weight increases by 3.41, while in age category E weight increases by 4.69. The effect is assumed to be the same for all heights.
+
+The model has a residual standard error of 4.359, and a Multiple R-squared value of 0.6204. This indicates that approximately 62.04% of the variability in weight can be explained by the model.
+The F-statistic also has a p-value of < 0.05 indicating that the model is statistically significant.
+
+**5. Which positions have the highest average overall ratings (OVA)**
+
+```{r}
+unique(fifa21$best_position)
+
+ggplot(fifa21, aes(fct_rev(fct_reorder(best_position, ova)), ova)) +
+  geom_boxplot(aes(fill = best_position)) +
+  labs(x = "Position",
+       y = "Overall average rating",
+       title = "Positions with the highest overall average ratings",
+       subtitle = "(CF players have the highest average ratings)") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 10, colour = "gray50"),
+        axis.title = element_text(size = 12, colour = "black", face = "bold"),
+        legend.position = "none")
+```
+
+Central Forward (CF) has the highest median overall rating across all positions, while Goal Keepers (GK) has the least ratings.
+
+**6. What is the distribution of players across different clubs and Which clubs have the highest average overall rating among its players?**
+
+```{r}
+#Distribution of players across different clubs in percentages
+
+fifa21 %>%
+  group_by(club) %>%
+  summarize(n = n()) %>%
+  group_by(n) %>%
+  summarize(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100) %>%
+  arrange(desc(count)) %>% 
+  slice_max(percentage, n = 5)
+
+
+# clubs with highest rated players
+
+highest_ratings <- fifa21 %>% 
+  group_by(club) %>% 
+  summarize(avg_ratings = mean(ova),
+            median_ratings = median(ova)) %>% 
+  arrange(desc(avg_ratings)) %>% 
+  slice_max(avg_ratings, n=10)
+
+highest_ratings %>% 
+  kable(digits = 0, format = "html", 
+        caption = "Clubs with highest average overall rating of players") %>% 
+  kable_classic("striped", "bordered", full_width = FALSE, html_font = "cambria",
+                position = "left",
+                fixed_thead = T) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, bold = TRUE, color = "black", background = ("#F0E68C")) %>% 
+  column_spec(2, color = "black", background = "lightblue")
+
+```
+
+From the data set, 22.28% of the clubs have 28 players each, 17.45% have 30 players, while surprisingly, there are clubs with less than 22 players. Approximately 15 clubs have 22 players and below. 
+
+FC Bayern Munchen, Real Madrid, Inter, and Napoli are the teams with the most highly rated players, while Finn Harps and Waerford FC have the lowest rated players.
+
+
+**7. How does the length of a player's contract relate to their market value?**
+
+```{r}
+class(fifa21$Start_year)
+class(fifa21$End_year)
+
+#Convert above variables to numeric
+fifa21$Start_year <- as.numeric(fifa21$Start_year)
+
+fifa21$End_year <- if_else(is.na(fifa21$End_year), NA, as.numeric(fifa21$End_year))
+
+mkt_val <- fifa21 %>% 
+  mutate(contract_length = End_year - Start_year) 
+
+
+#Hypotheses Testing
+
+#Null Hypothesis: There is no relationship between a player's contract length and their market value
+#Alternative Hypothesis: There is a relationship between a player's contract length and their market value
+
+cor.test(mkt_val$contract_length, mkt_val$value, method = "spearman")
+
+```
+
+There appears to be a weak positive relationship between a player's contract length and their market value.
+The Spearman's rank test yields a correlation coefficient of 0.213385, and a p-value < 0.05, thus we reject the null hypothesis and conclude that there is a relationship between a player's contract length and their market value.
+As the contract length increases, the market value is also expected to increase. 
+
+
+
+
