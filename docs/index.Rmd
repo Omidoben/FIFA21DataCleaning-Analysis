@@ -102,8 +102,11 @@ The data does not contain missing values
 
 1. Based on the Joined column, check which players have been playing at one club for more 10 years
 2. Which are the most valuable players, and which players are highly valued but still underpaid
-3. Who are the most skilled players
+3. Which positions have the highest average overall ratings (OVA)?
 4. Is there a relationship between age, height, and weight of a player?
+5. What is the distribution of players across different clubs and Which clubs have the highest average overall rating among its players?
+6. How does the length of a player's contract relate to their market value?
+
 
 **1. Create a new data frame and drop columns that won't be considered in the analysis**
 
