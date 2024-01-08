@@ -21,7 +21,7 @@ Welcome to the FIFA21 data analysis project! This project entails intensive data
 
 ### Objectives
 
-The objective of this project is to perform data cleaning and transformation on the raw, messy fifa21 data set, and then to analyze the data to derive insights such as who are the most valuable players, which players have stayed at a club for the longest time, and to relationships between age, weight, and height of players.
+The objective of this project is to perform data cleaning and transformation on the raw, messy fifa21 data set, and then to analyze the data to derive insights such as who are the most valuable players, which players have stayed at a club for the longest time, and to   check relationships between variables using regression models and scatter plots.
 
 #### Data Cleaning Tasks
 - Drop columns that won’t be used in the analysis
@@ -37,7 +37,7 @@ The objective of this project is to perform data cleaning and transformation on 
 - Check which players have been playing at a club for more than 10 years.
 - Highlight players who are highly valuable but still underpaid (using a scatterplot).
 - Identify the most valuable players.
-- Built a Multiple Regression Model to check if there is a significant relationship between weight, height, and age of a player. (Does the height and age of a player have a significant impact on the weight?)
+- Utilize a Multiple Regression Model to check if there is a significant relationship between weight, height, and age of a player. (Does the height and age of a player have a significant impact on the weight?)
 - Check the distribution of players across different clubs and identify clubs with the highest average overall rating among its players?
 - Investigate whether a player's contract length relates to their market value.
 ## Insights
